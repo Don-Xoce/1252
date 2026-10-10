@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Who Holds the Strings?</title>
+  <meta name="description" content="A 3-D presentation about leaders and manipulators.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="scene" aria-label="3-D folders. Swipe to turn them, tap the front folder to open it."></canvas>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-title">Who Holds the Strings?</span>
+      <span class="brand-sub">Leaders and Manipulators</span>
+    </div>
+    <div class="top-actions">
+      <button id="btn-add" class="btn ghost" title="Add videos, PDFs or pictures">+ Add files</button>
+      <button id="btn-full" class="btn ghost" title="Full screen (F)">&#x26F6; Full screen</button>
+    </div>
+  </header>
+
+  <div id="hint" class="hint">Swipe to turn the files &middot; Tap the front file to open it</div>
+
+  <!-- shown while the folders turn -->
+  <nav id="carousel-bar" class="bar carousel-only">
+    <div id="tabs" class="tabs"></div>
+    <div class="row">
+      <button id="btn-prev" class="btn round" aria-label="Previous file">&#9664;</button>
+      <button id="btn-open" class="btn primary">Open</button>
+      <button id="btn-next" class="btn round" aria-label="Next file">&#9654;</button>
+    </div>
+  </nav>
+
+  <!-- shown when a folder is open -->
+  <nav id="open-bar" class="bar open-only">
+    <button id="action" class="btn action" hidden></button>
+    <div class="row">
+      <button id="btn-page-prev" class="btn">&#9664; Back</button>
+      <div class="page-info">
+        <div id="folder-name" class="folder-name"></div>
+        <div id="page-count" class="page-count"></div>
+      </div>
+      <button id="btn-page-next" class="btn">Next &#9654;</button>
+      <button id="btn-close" class="btn ghost close">&#x2715; Close</button>
+    </div>
+  </nav>
+
+  <div id="drop" class="drop" hidden><div>Drop videos, PDFs or pictures here</div></div>
+  <input id="file-input" type="file" multiple accept="video/*,application/pdf,image/*" hidden>
+
+  <div id="loading" class="loading">Loading&hellip;</div>
+  <div id="no3d" class="loading" hidden>
+    This screen can&rsquo;t show 3-D graphics.<br>Please open this page in Chrome or Edge.
+  </div>
+
+  <script src="vendor/three.min.js"></script>
+  <script src="js/content.js"></script>
+  <script src="js/pages.js"></script>
+  <script src="js/media.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
