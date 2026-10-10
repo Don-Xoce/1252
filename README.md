@@ -1,7 +1,9 @@
 # Who Holds the Strings?
 
 A 3-D presentation about **leaders and manipulators** for a Year 5–6 class.
-Glass folders hang on threads of light in a turning carousel. Tap a folder to open it, then flip through its pages; each page curls as it turns.
+White card-stock folders hang on fine threads in a turning "star" carousel. The front folder is the largest and is mirrored on a glossy floor. Tap it to open it, then flip through its pages; each page curls as it turns.
+
+**Languages:** English, Español, Русский. **Appearance:** Day, Night or Auto (by time of day), plus a brightness slider. Both are in the ☀ settings button (top right). The site always opens in English; Day/Night and brightness are remembered on each screen.
 
 Built with [Three.js](https://threejs.org) (3-D) and [PDF.js](https://mozilla.github.io/pdf.js/) (PDFs). There's no install and no build step, and it works without internet.
 
@@ -52,7 +54,7 @@ Same as the USB option, or open the GitHub Pages link.
 3. Add a page inside a folder's `pages: [ ... ]` list:
 
 ```js
-{ type: "video",   title: "My video",  src: "media/my-video.mp4", caption: "Watch this!" },
+{ type: "video",   title: { en: "My video", es: "Mi video", ru: "Моё видео" },  src: "media/my-video.mp4", caption: "Watch this!" },
 { type: "pdf",     title: "My slides", src: "media/my-slides.pdf" },
 { type: "image",   title: "A picture", src: "media/photo.jpg" },
 { type: "gallery", title: "Slides",    images: ["media/slide1.png", "media/slide2.png"] },
@@ -66,7 +68,7 @@ Press **+ Add files**, or drag files onto the page. They appear in a new "Added 
 These disappear when the page is reloaded.
 
 ### Changing the words
-All the text is in **`js/content.js`**. Each folder has a `tab`, a `color`, a `title` and `pages`.
+All the text is in **`js/content.js`**, written three times: `{ en: "...", es: "...", ru: "..." }`. Button labels are in **`js/i18n.js`**. Each folder has a `tab`, a `color` (the small dot), a `title`, a `subtitle` (shown under the front folder) and `pages`.
 The comments at the top of that file list every page type you can use. If the page goes blank after an edit, check for a missing comma or quote mark.
 
 ---
@@ -76,11 +78,13 @@ The comments at the top of that file list every page type you can use. If the pa
 ```
 index.html          the page
 css/style.css       buttons and colours
-js/content.js       ← ALL THE WORDS (edit this)
+js/content.js       ← ALL THE WORDS, in 3 languages (edit this)
+js/i18n.js          button labels in 3 languages
+js/settings.js      language, Day/Night/Auto, brightness
 js/pages.js         draws each page
 js/app.js           the 3-D carousel, folders and page flips
 js/media.js         full-screen video / PDF / picture viewer
 media/              videos, PDFs, pictures
-fonts/              the Outfit font (saved locally so it works offline)
+fonts/              the Inter font, Latin + Cyrillic (saved locally so it works offline)
 vendor/             Three.js r158 and PDF.js 3.11 (saved locally so it works offline)
 ```

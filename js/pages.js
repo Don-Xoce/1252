@@ -1,22 +1,26 @@
 /*
- * Draws every page, cover and tab onto 2-D canvases in a dark "glass & glow" style.
+ * Draws every page, cover and tab onto 2-D canvases: white card-stock folders and white paper pages.
  * The 3-D scene (app.js) turns these canvases into textures.
- * Transparent corners are cut out in 3-D, so every shape gets soft rounded edges.
+ * All text comes from content.js / i18n.js in the chosen language.
  */
 (function () {
   "use strict";
 
-  var FONT = '"Outfit", "Trebuchet MS", "Segoe UI", Verdana, Arial, sans-serif';
+  var L = window.I18N;
+  var T = L.T;
+
+  var FONT = '"Inter", -apple-system, "SF Pro Display", "Segoe UI", Roboto, Arial, sans-serif';
   var PAGE_W = 1024, PAGE_H = 1344;
   var COVER_W = 640, COVER_H = 816;          // front cover (slightly shorter than the back)
   var PANEL_W = 640, PANEL_H = 840, TAB_H = 84; // back panel + its tab
 
-  var INK = "#f7f0e3";
-  var SOFT = "rgba(247,240,227,0.66)";
-  var FAINT = "rgba(247,240,227,0.14)";
-  var GOOD = "#5fd590";
-  var BAD = "#ff7262";
-  var GOLD = "#f2c46d";
+  var INK = "#111113";
+  var SOFT = "#6e6e73";
+  var FAINT = "#d2d2d7";
+  var GOOD = "#248a3d";
+  var GOOD_BG = "#34c759";
+  var BAD = "#d70015";
+  var BAD_BG = "#ff3b30";
 
   // ---------- helpers ----------
 
@@ -32,14 +36,6 @@
     if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
     var n = parseInt(h, 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  }
-
-  // amount < 0 darkens toward black, > 0 lightens toward white
-  function shade(hex, amount) {
-    var rgb = hexToRgb(hex);
-    var t = amount < 0 ? 0 : 255;
-    var p = Math.abs(amount);
-    return "rgb(" + rgb.map(function (v) { return Math.round(v + (t - v) * p); }).join(",") + ")";
   }
 
   function alpha(hex, a) {
@@ -95,75 +91,96 @@
     ctx.closePath();
   }
 
-  // A sheet of dark frosted glass, tinted by the folder colour, with a soft rim.
-  function glass(ctx, x, y, w, h, r, tint, opts) {
+  function pill(ctx, x, y, w, h, fill, stroke, lw) {
+    roundRect(ctx, x, y, w, h, h / 2);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 3; ctx.stroke(); }
+  }
+
+  function shadowOn(ctx, blur, y, a) {
+    ctx.shadowColor = "rgba(0,0,0," + (a == null ? 0.18 : a) + ")";
+    ctx.shadowBlur = blur;
+    ctx.shadowOffsetY = y || 0;
+  }
+  function shadowOff(ctx) {
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+  }
+
+  // Fine paper grain (also hides colour banding).
+  var grain = null;
+  function grainPattern(ctx) {
+    if (!grain) {
+      grain = makeCanvas(160, 160);
+      var g = grain.getContext("2d");
+      var img = g.createImageData(160, 160);
+      for (var i = 0; i < img.data.length; i += 4) {
+        var v = 128 + (Math.random() - 0.5) * 255;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+        img.data[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+      // a few longer paper fibres
+      g.globalAlpha = 0.25;
+      for (var f = 0; f < 60; f++) {
+        g.strokeStyle = Math.random() > 0.5 ? "#fff" : "#000";
+        g.lineWidth = 0.6;
+        g.beginPath();
+        var x = Math.random() * 160, y = Math.random() * 160, a = Math.random() * Math.PI;
+        g.moveTo(x, y);
+        g.lineTo(x + Math.cos(a) * 10, y + Math.sin(a) * 10);
+        g.stroke();
+      }
+    }
+    return ctx.createPattern(grain, "repeat");
+  }
+
+  // A sheet of paper or card stock: base tone, soft light from the top-left, grain, and a crisp edge.
+  function paper(ctx, x, y, w, h, r, base, opts) {
     opts = opts || {};
     ctx.save();
     roundRect(ctx, x, y, w, h, r);
     ctx.clip();
-    var base = ctx.createLinearGradient(x, y, x + w * 0.6, y + h);
-    base.addColorStop(0, opts.top || shade(tint, -0.72));
-    base.addColorStop(1, opts.bottom || "#0c0907");
     ctx.fillStyle = base;
     ctx.fillRect(x, y, w, h);
-    // colour glowing "behind" the glass
-    var blob = ctx.createRadialGradient(x + w * 0.2, y + h * 0.12, 0, x + w * 0.2, y + h * 0.12, w * 0.95);
-    blob.addColorStop(0, alpha(tint, opts.glow == null ? 0.34 : opts.glow));
-    blob.addColorStop(1, alpha(tint, 0));
-    ctx.fillStyle = blob;
+    var light = ctx.createLinearGradient(x, y, x + w * 0.7, y + h);
+    light.addColorStop(0, "rgba(255,255,255,0.55)");
+    light.addColorStop(0.5, "rgba(255,255,255,0)");
+    light.addColorStop(1, "rgba(0,0,0," + (opts.shade == null ? 0.06 : opts.shade) + ")");
+    ctx.fillStyle = light;
     ctx.fillRect(x, y, w, h);
-    var blob2 = ctx.createRadialGradient(x + w * 0.95, y + h, 0, x + w * 0.95, y + h, w * 0.8);
-    blob2.addColorStop(0, "rgba(242,196,109,0.12)");
-    blob2.addColorStop(1, "rgba(242,196,109,0)");
-    ctx.fillStyle = blob2;
+    // slightly darker towards the edges, like real paper
+    var vig = ctx.createRadialGradient(x + w / 2, y + h / 2, Math.min(w, h) * 0.35, x + w / 2, y + h / 2, Math.max(w, h) * 0.75);
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(0,0,0,0.05)");
+    ctx.fillStyle = vig;
     ctx.fillRect(x, y, w, h);
-    // diagonal sheen
-    var sheen = ctx.createLinearGradient(x, y, x + w, y + h * 0.55);
-    sheen.addColorStop(0, "rgba(255,255,255,0.10)");
-    sheen.addColorStop(0.35, "rgba(255,255,255,0.03)");
-    sheen.addColorStop(0.36, "rgba(255,255,255,0)");
-    sheen.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = sheen;
+    ctx.globalAlpha = opts.grain == null ? 0.045 : opts.grain;
+    ctx.globalCompositeOperation = "overlay";
+    ctx.fillStyle = grainPattern(ctx);
     ctx.fillRect(x, y, w, h);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
     ctx.restore();
-    // rim: bright at the top-left, fading round the sheet
-    ctx.save();
-    var rim = ctx.createLinearGradient(x, y, x + w, y + h);
-    rim.addColorStop(0, alpha(tint, 0.95));
-    rim.addColorStop(0.5, "rgba(255,255,255,0.10)");
-    rim.addColorStop(1, alpha(tint, 0.45));
-    ctx.strokeStyle = rim;
-    ctx.lineWidth = opts.rim || 4;
-    roundRect(ctx, x + 2, y + 2, w - 4, h - 4, r - 2);
+    ctx.strokeStyle = "rgba(0,0,0,0.10)";
+    ctx.lineWidth = 2;
+    roundRect(ctx, x + 1, y + 1, w - 2, h - 2, r);
     ctx.stroke();
-    ctx.restore();
   }
 
-  function pill(ctx, x, y, w, h, fill, stroke) {
-    roundRect(ctx, x, y, w, h, h / 2);
-    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 3; ctx.stroke(); }
+  function dot(ctx, x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
   }
 
-  function glowOn(ctx, color, blur) {
-    ctx.shadowColor = color;
-    ctx.shadowBlur = blur;
-  }
-  function glowOff(ctx) {
-    ctx.shadowColor = "transparent";
-    ctx.shadowBlur = 0;
-  }
-
-  function bulletIcon(ctx, kind, x, cy, r, n, color) {
+  function bulletIcon(ctx, kind, x, cy, r, n) {
     ctx.save();
     if (kind === "check" || kind === "cross") {
-      var c = kind === "check" ? GOOD : BAD;
-      ctx.fillStyle = alpha(kind === "check" ? "#5fd590" : "#ff7262", 0.18);
-      ctx.beginPath();
-      ctx.arc(x, cy, r, 0, Math.PI * 2);
-      ctx.fill();
-      glowOn(ctx, c, 14);
-      ctx.strokeStyle = c;
+      dot(ctx, x, cy, r, kind === "check" ? GOOD_BG : BAD_BG);
+      ctx.strokeStyle = "#fff";
       ctx.lineWidth = r * 0.2;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -180,38 +197,25 @@
       }
       ctx.stroke();
     } else if (kind === "number") {
-      ctx.fillStyle = alpha(color, 0.2);
-      ctx.strokeStyle = alpha(color, 0.9);
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(x, cy, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = INK;
-      ctx.font = font(r * 1.1, 700);
+      dot(ctx, x, cy, r, INK);
+      ctx.fillStyle = "#fff";
+      ctx.font = font(r * 1.05, 700);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(n), x, cy + r * 0.04);
+      ctx.fillText(String(n), x, cy + r * 0.05);
     } else {
-      glowOn(ctx, color, 16);
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x, cy, r * 0.32, 0, Math.PI * 2);
-      ctx.fill();
+      dot(ctx, x, cy, r * 0.3, INK);
     }
     ctx.restore();
   }
 
-  // A glowing line-art puppet, like the figures in the video.
-  function drawPuppet(ctx, cx, top, scale, color, faint) {
-    var s = scale;
+  // A clean line-art puppet hanging from its control bar.
+  function drawPuppet(ctx, cx, top, s, color) {
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    if (!faint) glowOn(ctx, color, 24 * s);
     ctx.strokeStyle = color;
-    // control bar
-    ctx.lineWidth = 9 * s;
+    ctx.lineWidth = 8 * s;
     ctx.beginPath();
     ctx.moveTo(cx - 120 * s, top);
     ctx.lineTo(cx + 120 * s, top);
@@ -220,18 +224,16 @@
     ctx.stroke();
     var headY = top + 230 * s;
     var bodyY = top + 345 * s;
-    // strings
-    ctx.lineWidth = 2.5 * s;
-    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = 2 * s;
+    ctx.globalAlpha = 0.55;
     ctx.beginPath();
     ctx.moveTo(cx - 115 * s, top); ctx.lineTo(cx - 98 * s, bodyY - 74 * s);
     ctx.moveTo(cx + 115 * s, top); ctx.lineTo(cx + 98 * s, bodyY - 74 * s);
     ctx.moveTo(cx, top + 42 * s); ctx.lineTo(cx, headY - 58 * s);
     ctx.stroke();
     ctx.globalAlpha = 1;
-    // figure (outlined, softly filled)
-    ctx.fillStyle = alpha("#f2c46d", faint ? 0.06 : 0.16);
-    ctx.lineWidth = 7 * s;
+    ctx.lineWidth = 6 * s;
+    ctx.fillStyle = "rgba(0,0,0,0.04)";
     ctx.beginPath();
     ctx.moveTo(cx - 48 * s, bodyY - 22 * s); ctx.lineTo(cx - 98 * s, bodyY - 74 * s);
     ctx.moveTo(cx + 48 * s, bodyY - 22 * s); ctx.lineTo(cx + 98 * s, bodyY - 74 * s);
@@ -251,37 +253,33 @@
 
   // ---------- page frame ----------
 
-  var M = 26;                 // transparent margin around the glass sheet
+  var M = 18;                 // transparent margin around the sheet
   var LEFT = 96;
   var WIDTH = PAGE_W - LEFT * 2;
   var CONTENT_TOP = 150;
   var CONTENT_BOTTOM = PAGE_H - 130;
 
   function pageBase(ctx, folder, info) {
-    glass(ctx, M, M, PAGE_W - 2 * M, PAGE_H - 2 * M, 56, folder.color, { glow: 0.26, rim: 4 });
+    paper(ctx, M, M, PAGE_W - 2 * M, PAGE_H - 2 * M, 14, "#fbfbf9", { shade: 0.04, grain: 0.04 });
 
-    // header pill
-    var label = "FILE " + pad2(info.folderIndex + 1) + "  ·  " + folder.tab.toUpperCase();
+    // header: colour dot + folder name
+    dot(ctx, LEFT + 8, 92, 8, folder.color);
+    ctx.fillStyle = SOFT;
     ctx.font = font(26, 600);
-    var w = ctx.measureText(label).width + 52;
-    pill(ctx, LEFT, 70, w, 50, alpha(folder.color, 0.16), alpha(folder.color, 0.55));
-    ctx.fillStyle = shade(folder.color, 0.35);
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, LEFT + 26, 96);
+    ctx.fillText(L.t("file") + " " + pad2(info.folderIndex + 1) + "  ·  " + T(folder.tab).toUpperCase(), LEFT + 28, 93);
     ctx.textBaseline = "alphabetic";
 
     // footer: page dots
     var n = info.pageCount;
-    var dotW = 14, gap = 14, total = n * dotW + (n - 1) * gap + 30;
+    var d = 12, gap = 12, wide = 34;
+    var total = (n - 1) * (d + gap) + wide;
     var x0 = PAGE_W / 2 - total / 2;
     for (var i = 0; i < n; i++) {
       var on = i === info.pageIndex;
-      ctx.fillStyle = on ? folder.color : FAINT;
-      if (on) glowOn(ctx, folder.color, 12);
-      pill(ctx, x0, PAGE_H - 92, on ? dotW + 30 : dotW, dotW, ctx.fillStyle);
-      glowOff(ctx);
-      x0 += (on ? dotW + 30 : dotW) + gap;
+      pill(ctx, x0, PAGE_H - 88, on ? wide : d, d, on ? INK : FAINT);
+      x0 += (on ? wide : d) + gap;
     }
   }
 
@@ -292,41 +290,30 @@
     draw(s, false);
   }
 
-  function titleUnderline(ctx, folder, y, x) {
-    x = x == null ? LEFT : x;
-    var g = ctx.createLinearGradient(x, 0, x + 180, 0);
-    g.addColorStop(0, folder.color);
-    g.addColorStop(1, alpha(folder.color, 0));
-    glowOn(ctx, folder.color, 12);
-    pill(ctx, x, y, 180, 8, g);
-    glowOff(ctx);
+  function accentBar(ctx, folder, y, x) {
+    pill(ctx, x == null ? LEFT : x, y, 64, 8, folder.color);
   }
 
   // ---------- page types ----------
 
   var drawers = {};
 
-  drawers.title = function (ctx, page, folder) {
+  drawers.title = function (ctx, page, folder, info) {
     var cx = PAGE_W / 2;
-    drawPuppet(ctx, cx, 230, 0.95, GOLD);
+    drawPuppet(ctx, cx, 230, 0.95, INK);
     fit(ctx, function (s, dry) {
       var y = 700;
-      if (!dry) {
-        var g = ctx.createLinearGradient(0, y, 0, y + 260 * s);
-        g.addColorStop(0, "#fff7e6");
-        g.addColorStop(1, GOLD);
-      }
-      y = textBlock(ctx, page.title, cx, y, WIDTH, 100 * s, 108 * s, { weight: 700, align: "center", color: g }, dry);
+      y = textBlock(ctx, T(page.title), cx, y, WIDTH, 100 * s, 108 * s, { weight: 800, align: "center" }, dry);
       y += 22 * s;
-      if (page.subtitle) y = textBlock(ctx, page.subtitle, cx, y, WIDTH - 40, 46 * s, 58 * s, { color: SOFT, align: "center" }, dry);
-      var note = page.note || (folder === window.PRESENTATION.folders[0] ? window.PRESENTATION.presenter : "");
+      if (page.subtitle) y = textBlock(ctx, T(page.subtitle), cx, y, WIDTH - 40, 44 * s, 56 * s, { color: SOFT, align: "center" }, dry);
+      var note = T(page.note) || (info.folderIndex === 0 && info.pageIndex === 0 ? T(window.PRESENTATION.presenter) : "");
       if (note) {
-        y += 40 * s;
-        ctx.font = font(38 * s, 600);
-        var w = ctx.measureText(note).width + 70 * s;
+        y += 44 * s;
+        ctx.font = font(36 * s, 600);
+        var w = ctx.measureText(note).width + 72 * s;
         if (!dry) {
-          pill(ctx, cx - w / 2, y, w, 76 * s, "rgba(242,196,109,0.12)", "rgba(242,196,109,0.55)");
-          ctx.fillStyle = GOLD;
+          pill(ctx, cx - w / 2, y, w, 76 * s, INK);
+          ctx.fillStyle = "#fff";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText(note, cx, y + 39 * s);
@@ -342,22 +329,22 @@
     var icon = page.icon || "dot";
     fit(ctx, function (s, dry) {
       var y = CONTENT_TOP + 20;
-      if (page.title) y = textBlock(ctx, page.title, LEFT, y, WIDTH, 78 * s, 86 * s, { weight: 700 }, dry);
-      if (!dry) titleUnderline(ctx, folder, y + 4);
-      y += 54 * s;
+      if (page.title) y = textBlock(ctx, T(page.title), LEFT, y, WIDTH, 78 * s, 86 * s, { weight: 800 }, dry);
+      if (!dry) accentBar(ctx, folder, y + 6);
+      y += 56 * s;
       if (page.text) {
-        y = textBlock(ctx, page.text, LEFT, y, WIDTH, 48 * s, 64 * s, { color: SOFT }, dry);
+        y = textBlock(ctx, T(page.text), LEFT, y, WIDTH, 46 * s, 62 * s, { color: SOFT }, dry);
         y += 36 * s;
       }
       var list = page.bullets || [];
-      var r = 28 * s;
+      var r = 27 * s;
       for (var i = 0; i < list.length; i++) {
         var textX = LEFT + r * 2 + 30;
-        ctx.font = font(46 * s, 500);
-        var lines = wrap(ctx, list[i], WIDTH - (textX - LEFT));
+        ctx.font = font(46 * s, 600);
+        var lines = wrap(ctx, T(list[i]), WIDTH - (textX - LEFT));
         var blockH = lines.length * 60 * s;
         if (!dry) {
-          bulletIcon(ctx, icon, LEFT + r, y + 30 * s, r, i + 1, folder.color);
+          bulletIcon(ctx, icon, LEFT + r, y + 30 * s, r, i + 1);
           ctx.fillStyle = INK;
           ctx.textAlign = "left";
           for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], textX, y + 46 * s + j * 60 * s);
@@ -369,37 +356,33 @@
   };
 
   drawers.quotes = function (ctx, page, folder) {
-    var color = page.good === false ? BAD : GOOD;
+    var color = page.good === false ? BAD_BG : GOOD_BG;
     fit(ctx, function (s, dry) {
       var y = CONTENT_TOP + 20;
-      y = textBlock(ctx, page.title, LEFT, y, WIDTH, 78 * s, 86 * s, { weight: 700 }, dry);
-      if (!dry) titleUnderline(ctx, folder, y + 4);
-      y += 56 * s;
+      y = textBlock(ctx, T(page.title), LEFT, y, WIDTH, 78 * s, 86 * s, { weight: 800 }, dry);
+      if (!dry) accentBar(ctx, folder, y + 6);
+      y += 58 * s;
       var quotes = page.quotes || [];
       for (var i = 0; i < quotes.length; i++) {
         var indent = i % 2 ? 80 : 0;
         var w = WIDTH - 80;
         var x = LEFT + indent;
-        ctx.font = font(46 * s, 500, "italic");
-        var lines = wrap(ctx, "“" + quotes[i] + "”", w - 90);
-        var h = lines.length * 58 * s + 56 * s;
+        ctx.font = font(44 * s, 600);
+        var lines = wrap(ctx, "“" + T(quotes[i]) + "”", w - 90);
+        var h = lines.length * 56 * s + 56 * s;
         if (!dry) {
-          roundRect(ctx, x, y, w, h, 30);
-          ctx.fillStyle = alpha(page.good === false ? "#ff7262" : "#5fd590", 0.1);
+          shadowOn(ctx, 18, 6, 0.08);
+          roundRect(ctx, x, y, w, h, 28);
+          ctx.fillStyle = "#f4f4f2";
           ctx.fill();
-          ctx.strokeStyle = alpha(page.good === false ? "#ff7262" : "#5fd590", 0.45);
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          // glowing accent bar
-          glowOn(ctx, color, 14);
-          pill(ctx, x + 18, y + 16, 8, h - 32, color);
-          glowOff(ctx);
+          shadowOff(ctx);
+          pill(ctx, x + 20, y + 18, 8, h - 36, color);
           ctx.fillStyle = INK;
-          ctx.font = font(46 * s, 500, "italic");
+          ctx.font = font(44 * s, 600);
           ctx.textAlign = "left";
-          for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], x + 52, y + 28 * s + 44 * s + j * 58 * s);
+          for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], x + 52, y + 28 * s + 42 * s + j * 56 * s);
         }
-        y += h + 30 * s;
+        y += h + 28 * s;
       }
       return y;
     }, CONTENT_BOTTOM);
@@ -408,20 +391,18 @@
   drawers.compare = function (ctx, page, folder) {
     fit(ctx, function (s, dry) {
       var y = CONTENT_TOP + 20;
-      y = textBlock(ctx, page.title, LEFT, y, WIDTH, 74 * s, 82 * s, { weight: 700 }, dry);
-      if (!dry) titleUnderline(ctx, folder, y + 4);
-      y += 44 * s;
+      y = textBlock(ctx, T(page.title), LEFT, y, WIDTH, 74 * s, 82 * s, { weight: 800 }, dry);
+      if (!dry) accentBar(ctx, folder, y + 6);
+      y += 46 * s;
       var colW = (WIDTH - 22) / 2;
       var xs = [LEFT, LEFT + colW + 22];
-      var heads = [page.left || "Leader", page.right || "Manipulator"];
-      var cols = [GOOD, BAD];
+      var heads = [T(page.left) || L.t("leader"), T(page.right) || L.t("manipulator")];
+      var cols = [GOOD_BG, BAD_BG];
       for (var c = 0; c < 2; c++) {
         if (!dry) {
-          glowOn(ctx, cols[c], 18);
-          pill(ctx, xs[c], y, colW, 76 * s, alpha(c ? "#ff7262" : "#5fd590", 0.22), cols[c]);
-          glowOff(ctx);
-          ctx.fillStyle = INK;
-          ctx.font = font(42 * s, 700);
+          pill(ctx, xs[c], y, colW, 76 * s, cols[c]);
+          ctx.fillStyle = "#fff";
+          ctx.font = font(40 * s, 700);
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText(heads[c], xs[c] + colW / 2, y + 39 * s);
@@ -433,30 +414,27 @@
       for (var i = 0; i < rows.length; i++) {
         if (!dry) {
           ctx.fillStyle = SOFT;
-          ctx.font = font(26 * s, 600);
+          ctx.font = font(25 * s, 700);
           ctx.textAlign = "left";
-          ctx.fillText(rows[i][0].toUpperCase(), LEFT + 8, y + 26 * s);
+          ctx.fillText(T(rows[i][0]).toUpperCase(), LEFT + 8, y + 26 * s);
         }
         y += 38 * s;
-        ctx.font = font(38 * s, 500);
-        var l1 = wrap(ctx, rows[i][1], colW - 44);
-        var l2 = wrap(ctx, rows[i][2], colW - 44);
-        var h = Math.max(l1.length, l2.length) * 48 * s + 34 * s;
+        ctx.font = font(37 * s, 500);
+        var l1 = wrap(ctx, T(rows[i][1]), colW - 44);
+        var l2 = wrap(ctx, T(rows[i][2]), colW - 44);
+        var h = Math.max(l1.length, l2.length) * 47 * s + 34 * s;
         if (!dry) {
           [l1, l2].forEach(function (lines, c) {
-            roundRect(ctx, xs[c], y, colW, h, 20);
-            ctx.fillStyle = alpha(c ? "#ff7262" : "#5fd590", 0.09);
+            roundRect(ctx, xs[c], y, colW, h, 18);
+            ctx.fillStyle = c ? "rgba(255,59,48,0.08)" : "rgba(52,199,89,0.10)";
             ctx.fill();
-            ctx.strokeStyle = alpha(c ? "#ff7262" : "#5fd590", 0.3);
-            ctx.lineWidth = 2;
-            ctx.stroke();
             ctx.fillStyle = INK;
-            ctx.font = font(38 * s, 500);
+            ctx.font = font(37 * s, 500);
             ctx.textAlign = "left";
-            for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], xs[c] + 22, y + 17 * s + 37 * s + j * 48 * s);
+            for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], xs[c] + 22, y + 17 * s + 36 * s + j * 47 * s);
           });
         }
-        y += h + 20 * s;
+        y += h + 18 * s;
       }
       return y;
     }, CONTENT_BOTTOM);
@@ -466,106 +444,95 @@
     var good = /^leader/i.test(page.answer || "");
     fit(ctx, function (s, dry) {
       var y = CONTENT_TOP + 20;
-      y = textBlock(ctx, page.title, LEFT, y, WIDTH, 70 * s, 78 * s, { weight: 700 }, dry);
-      if (!dry) titleUnderline(ctx, folder, y + 4);
-      y += 54 * s;
-      // the situation, on its own glass card
-      ctx.font = font(50 * s, 600);
-      var lines = wrap(ctx, page.scenario, WIDTH - 110);
-      var h = lines.length * 64 * s + 84 * s;
+      y = textBlock(ctx, T(page.title), LEFT, y, WIDTH, 70 * s, 78 * s, { weight: 800 }, dry);
+      if (!dry) accentBar(ctx, folder, y + 6);
+      y += 56 * s;
+      ctx.font = font(48 * s, 600);
+      var lines = wrap(ctx, T(page.scenario), WIDTH - 110);
+      var h = lines.length * 62 * s + 84 * s;
       if (!dry) {
-        roundRect(ctx, LEFT, y, WIDTH, h, 36);
-        ctx.fillStyle = "rgba(255,255,255,0.06)";
+        shadowOn(ctx, 24, 8, 0.08);
+        roundRect(ctx, LEFT, y, WIDTH, h, 32);
+        ctx.fillStyle = "#f4f4f2";
         ctx.fill();
-        ctx.strokeStyle = alpha(folder.color, 0.6);
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        ctx.fillStyle = alpha(folder.color, 0.5);
-        ctx.font = font(150, 700);
+        shadowOff(ctx);
+        ctx.fillStyle = FAINT;
+        ctx.font = font(150, 800);
         ctx.textAlign = "left";
-        ctx.fillText("“", LEFT + 16, y + 118);
+        ctx.fillText("“", LEFT + 14, y + 116);
         ctx.fillStyle = INK;
-        ctx.font = font(50 * s, 600);
-        for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], LEFT + 60, y + 42 * s + 50 * s + j * 64 * s);
+        ctx.font = font(48 * s, 600);
+        for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], LEFT + 60, y + 42 * s + 48 * s + j * 62 * s);
       }
       y += h + 70 * s;
 
       var bw = (WIDTH - 36) / 2;
-      var bh = 116 * s;
+      var bh = 112 * s;
       if (!info.revealed) {
         if (!dry) {
-          [["Leader", GOOD, LEFT, "#5fd590"], ["Manipulator", BAD, LEFT + bw + 36, "#ff7262"]].forEach(function (b) {
-            pill(ctx, b[2], y, bw, bh, alpha(b[3], 0.08), alpha(b[3], 0.7));
+          [[L.t("leader"), GOOD, LEFT], [L.t("manipulator"), BAD, LEFT + bw + 36]].forEach(function (b) {
+            pill(ctx, b[2], y, bw, bh, null, b[1], 4);
             ctx.fillStyle = b[1];
-            ctx.font = font(46 * s, 700);
+            ctx.font = font(42 * s, 700);
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(b[0] + "?", b[2] + bw / 2, y + bh / 2);
             ctx.textBaseline = "alphabetic";
           });
           ctx.fillStyle = SOFT;
-          ctx.font = font(34 * s, 400, "italic");
-          ctx.textAlign = "center";
-          ctx.fillText("What do you think? Then press “Show answer”.", PAGE_W / 2, y + bh + 84 * s);
+          textBlock(ctx, L.t("quizPrompt"), PAGE_W / 2, y + bh + 40 * s, WIDTH, 32 * s, 42 * s, { align: "center", color: SOFT, style: "italic" });
         }
-        y += bh + 110 * s;
+        y += bh + 120 * s;
       } else {
-        var color = good ? GOOD : BAD;
-        var hex = good ? "#5fd590" : "#ff7262";
         if (!dry) {
-          var bwid = 640 * s, bhei = 150 * s;
-          glowOn(ctx, color, 40);
-          pill(ctx, PAGE_W / 2 - bwid / 2, y, bwid, bhei, alpha(hex, 0.2), color);
-          glowOff(ctx);
-          ctx.fillStyle = INK;
-          ctx.font = font(76 * s, 800);
+          var label = L.t(good ? "leader" : "manipulator").toUpperCase();
+          ctx.font = font(70 * s, 800);
+          var bwid = Math.max(560 * s, ctx.measureText("✔ " + label).width + 120 * s);
+          var bhei = 144 * s;
+          shadowOn(ctx, 30, 10, 0.18);
+          pill(ctx, PAGE_W / 2 - bwid / 2, y, bwid, bhei, good ? GOOD_BG : BAD_BG);
+          shadowOff(ctx);
+          ctx.fillStyle = "#fff";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText((good ? "✔ " : "✖ ") + page.answer.toUpperCase(), PAGE_W / 2, y + bhei / 2 + 2);
+          ctx.fillText((good ? "✔ " : "✖ ") + label, PAGE_W / 2, y + bhei / 2 + 2);
           ctx.textBaseline = "alphabetic";
         }
-        y += 200 * s;
-        if (page.why) y = textBlock(ctx, page.why, PAGE_W / 2, y, WIDTH - 40, 50 * s, 64 * s, { align: "center", color: INK, weight: 500 }, dry);
+        y += 194 * s;
+        if (page.why) y = textBlock(ctx, T(page.why), PAGE_W / 2, y, WIDTH - 40, 48 * s, 62 * s, { align: "center", color: INK, weight: 600 }, dry);
       }
       return y;
     }, CONTENT_BOTTOM);
   };
 
-  drawers.big = function (ctx, page, folder) {
+  drawers.big = function (ctx, page) {
     var cx = PAGE_W / 2;
+    var text = T(page.text), small = T(page.small);
     var measure = function (s) {
-      var y = textBlock(ctx, page.text, cx, 0, WIDTH, 94 * s, 106 * s, { weight: 700, align: "center" }, true);
-      if (page.small) y = textBlock(ctx, page.small, cx, y + 60 * s, WIDTH - 40, 46 * s, 60 * s, { align: "center" }, true);
+      var y = textBlock(ctx, text, cx, 0, WIDTH, 92 * s, 104 * s, { weight: 800, align: "center" }, true);
+      if (small) y = textBlock(ctx, small, cx, y + 60 * s, WIDTH - 40, 44 * s, 58 * s, { align: "center" }, true);
       return y;
     };
     var s = 1.2;
     while (s > 0.55 && measure(s) > CONTENT_BOTTOM - CONTENT_TOP - 220) s -= 0.05;
     var total = measure(s);
     var y = CONTENT_TOP + (CONTENT_BOTTOM - CONTENT_TOP - total) / 2 + 50;
-    // glowing strings coming down from the top
+    // three threads coming down from the top
     for (var k = -1; k <= 1; k++) {
       var sx = cx + k * 170;
       var g = ctx.createLinearGradient(0, 130, 0, y - 60);
-      g.addColorStop(0, alpha(folder.color, 0));
-      g.addColorStop(1, alpha(folder.color, 0.9));
+      g.addColorStop(0, "rgba(17,17,19,0)");
+      g.addColorStop(1, "rgba(17,17,19,0.5)");
       ctx.strokeStyle = g;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(sx, 130);
       ctx.lineTo(sx, y - 60);
       ctx.stroke();
-      glowOn(ctx, folder.color, 18);
-      ctx.fillStyle = folder.color;
-      ctx.beginPath();
-      ctx.arc(sx, y - 60, 9, 0, Math.PI * 2);
-      ctx.fill();
-      glowOff(ctx);
+      dot(ctx, sx, y - 60, 7, INK);
     }
-    var tg = ctx.createLinearGradient(0, y, 0, y + total);
-    tg.addColorStop(0, "#fff8ea");
-    tg.addColorStop(1, shade(folder.color, 0.35));
-    y = textBlock(ctx, page.text, cx, y, WIDTH, 94 * s, 106 * s, { weight: 700, align: "center", color: tg }, false);
-    if (page.small) textBlock(ctx, page.small, cx, y + 60 * s, WIDTH - 40, 46 * s, 60 * s, { align: "center", color: SOFT }, false);
+    y = textBlock(ctx, text, cx, y, WIDTH, 92 * s, 104 * s, { weight: 800, align: "center" }, false);
+    if (small) textBlock(ctx, small, cx, y + 60 * s, WIDTH - 40, 44 * s, 58 * s, { align: "center", color: SOFT }, false);
   };
 
   function mediaIcon(ctx, type, cx, cy, size) {
@@ -575,14 +542,10 @@
     ctx.lineWidth = size * 0.06;
     ctx.lineJoin = "round";
     if (type === "video") {
-      ctx.fillStyle = "rgba(255,255,255,0.16)";
-      ctx.strokeStyle = "rgba(255,255,255,0.6)";
-      ctx.lineWidth = 3;
+      ctx.fillStyle = "rgba(255,255,255,0.22)";
       ctx.beginPath();
       ctx.arc(cx, cy, size * 0.6, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
-      glowOn(ctx, "rgba(255,255,255,0.8)", 20);
       ctx.fillStyle = "#fff";
       ctx.beginPath();
       ctx.moveTo(cx - size * 0.17, cy - size * 0.27);
@@ -603,7 +566,7 @@
         roundRect(ctx, cx - size * 0.45 + o, cy - size * 0.32 - o, size * 0.9, size * 0.64, size * 0.08);
         ctx.fill();
       }
-      ctx.fillStyle = "#3a4656";
+      ctx.fillStyle = "#3a3a3c";
       ctx.beginPath();
       ctx.moveTo(cx - size * 0.35, cy + size * 0.22);
       ctx.lineTo(cx - size * 0.08, cy - size * 0.1);
@@ -618,17 +581,17 @@
 
   function drawMedia(ctx, page, folder) {
     var y = CONTENT_TOP + 20;
-    y = textBlock(ctx, page.title || "", LEFT, y, WIDTH, 72, 80, { weight: 700 });
-    titleUnderline(ctx, folder, y + 4);
-    y += 56;
+    y = textBlock(ctx, T(page.title), LEFT, y, WIDTH, 70, 78, { weight: 800 });
+    accentBar(ctx, folder, y + 6);
+    y += 58;
     var w = WIDTH, h = Math.round(WIDTH * 9 / 16);
     if (page.type === "pdf") h = Math.round(WIDTH * 0.75);
     ctx.save();
-    glowOn(ctx, alpha(folder.color, 0.6), 40);
-    roundRect(ctx, LEFT, y, w, h, 30);
-    ctx.fillStyle = "#0b0806";
+    shadowOn(ctx, 40, 16, 0.25);
+    roundRect(ctx, LEFT, y, w, h, 24);
+    ctx.fillStyle = "#000";
     ctx.fill();
-    glowOff(ctx);
+    shadowOff(ctx);
     ctx.clip();
     var img = page._img;
     if (img) {
@@ -637,219 +600,228 @@
       try { ctx.drawImage(img, LEFT + (w - iw) / 2, y + (h - ih) / 2, iw, ih); } catch (e) { /* ignore */ }
     } else {
       var g = ctx.createRadialGradient(PAGE_W / 2, y + h / 2, 10, PAGE_W / 2, y + h / 2, w * 0.6);
-      g.addColorStop(0, shade(folder.color, -0.3));
-      g.addColorStop(1, "#0b0806");
+      g.addColorStop(0, "#3a3a3c");
+      g.addColorStop(1, "#000");
       ctx.fillStyle = g;
       ctx.fillRect(LEFT, y, w, h);
     }
     ctx.restore();
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = 2;
-    roundRect(ctx, LEFT, y, w, h, 30);
-    ctx.stroke();
     if (page.type === "video" || !img) mediaIcon(ctx, page.type, PAGE_W / 2, y + h / 2, 170);
     y += h + 56;
-    if (page.caption) y = textBlock(ctx, page.caption, PAGE_W / 2, y, WIDTH, 48, 62, { align: "center", weight: 500 });
-    var hint = {
-      video: "Press “Play video” to watch.",
-      pdf: "Press “Open” to show it full screen.",
-      image: "Press “Open” to show it full screen.",
-      gallery: "Press “Open” to show the slides."
-    }[page.type];
-    textBlock(ctx, hint, PAGE_W / 2, y + 16, WIDTH, 34, 44, { align: "center", color: SOFT, style: "italic" });
+    if (page.caption) y = textBlock(ctx, T(page.caption), PAGE_W / 2, y, WIDTH, 46, 60, { align: "center", weight: 600 });
+    textBlock(ctx, L.t(page.type === "video" ? "hintVideo" : "hintOpen"), PAGE_W / 2, y + 16, WIDTH, 32, 42,
+      { align: "center", color: SOFT, style: "italic" });
   }
 
   drawers.video = drawers.pdf = drawers.image = drawers.gallery = drawMedia;
 
-  // ---------- public API ----------
+  // ---------- folder parts ----------
 
-  function drawPage(page, folder, info) {
-    var c = makeCanvas(PAGE_W, PAGE_H);
-    var ctx = c.getContext("2d");
-    pageBase(ctx, folder, info);
-    (drawers[page.type] || drawers.text)(ctx, page, folder, info);
-    return c;
-  }
+  var STOCK = "#f2f1ec";        // outside of the folder (card stock)
+  var STOCK_IN = "#e8e6df";     // inside of the folder
 
-  // The back of a page: plain glass with a faint puppet.
-  function drawPageBack() {
-    var c = makeCanvas(512, 672);
-    var ctx = c.getContext("2d");
-    glass(ctx, 13, 13, 486, 646, 28, "#c9a060", { glow: 0.16, rim: 2 });
-    ctx.globalAlpha = 0.35;
-    drawPuppet(ctx, 256, 200, 0.55, "rgba(242,196,109,0.6)", true);
-    ctx.globalAlpha = 1;
-    return c;
-  }
-
-  function coverContent(ctx, folder, index, w, h) {
-    // file number + puppet-cross mark
-    ctx.fillStyle = shade(folder.color, 0.25);
-    ctx.font = font(30, 600);
-    ctx.textAlign = "left";
-    ctx.fillText("FILE " + pad2(index + 1), 64, 104);
-    ctx.save();
-    glowOn(ctx, folder.color, 16);
-    ctx.strokeStyle = folder.color;
-    ctx.lineWidth = 5;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(w - 130, 92); ctx.lineTo(w - 64, 92);
-    ctx.moveTo(w - 97, 66); ctx.lineTo(w - 97, 118);
-    ctx.stroke();
-    ctx.restore();
-
-    // title, big and clean
-    var size = 66;
-    ctx.font = font(size, 700);
-    while (wrap(ctx, folder.title, w - 128).length > 3 && size > 40) {
-      size -= 4;
-      ctx.font = font(size, 700);
-    }
-    var lines = wrap(ctx, folder.title, w - 128);
-    var blockH = lines.length * size * 1.1;
-    var y = h * 0.47 - blockH / 2;
-    var g = ctx.createLinearGradient(0, y, 0, y + blockH);
-    g.addColorStop(0, "#fffaf0");
-    g.addColorStop(1, shade(folder.color, 0.45));
-    y = textBlock(ctx, folder.title, 64, y, w - 128, size, size * 1.1, { weight: 700, color: g });
-    titleUnderline(ctx, folder, y + 6, 64);
-    if (folder.subtitle) textBlock(ctx, folder.subtitle, 64, y + 34, w - 128, 32, 40, { color: SOFT });
-
-    // page count pill
-    var label = (folder.pages || []).length + " pages";
-    ctx.font = font(26, 600);
-    var pw = ctx.measureText(label).width + 44;
-    pill(ctx, 64, h - 118, pw, 50, alpha(folder.color, 0.16), alpha(folder.color, 0.5));
-    ctx.fillStyle = INK;
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, 86, h - 92);
-    ctx.textBaseline = "alphabetic";
+  // Two faint score lines near the bottom, like a real file folder.
+  function scoreLines(ctx, w, h) {
+    ctx.strokeStyle = "rgba(0,0,0,0.07)";
+    ctx.lineWidth = 2;
+    [h - 70, h - 52].forEach(function (y) {
+      ctx.beginPath();
+      ctx.moveTo(20, y);
+      ctx.lineTo(w - 20, y);
+      ctx.stroke();
+    });
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 1;
+    [h - 68, h - 50].forEach(function (y) {
+      ctx.beginPath();
+      ctx.moveTo(20, y);
+      ctx.lineTo(w - 20, y);
+      ctx.stroke();
+    });
   }
 
   function drawCover(folder, index) {
     var c = makeCanvas(COVER_W, COVER_H);
     var ctx = c.getContext("2d");
-    glass(ctx, 8, 8, COVER_W - 16, COVER_H - 16, 40, folder.color, { glow: 0.5, rim: 5, top: shade(folder.color, -0.62) });
-    coverContent(ctx, folder, index, COVER_W, COVER_H);
+    paper(ctx, 4, 4, COVER_W - 8, COVER_H - 8, 10, STOCK, { shade: 0.08, grain: 0.06 });
+    scoreLines(ctx, COVER_W, COVER_H);
+
+    // printed label sticker
+    var lx = 56, ly = 150, lw = COVER_W - 112, lh = 330;
+    shadowOn(ctx, 10, 3, 0.12);
+    roundRect(ctx, lx, ly, lw, lh, 10);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    shadowOff(ctx);
+    ctx.save();
+    roundRect(ctx, lx, ly, lw, lh, 10);
+    ctx.clip();
+    ctx.globalAlpha = 0.03;
+    ctx.fillStyle = grainPattern(ctx);
+    ctx.fillRect(lx, ly, lw, lh);
+    ctx.restore();
+
+    dot(ctx, lx + 40, ly + 50, 9, folder.color);
+    ctx.fillStyle = SOFT;
+    ctx.font = font(24, 600);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(L.t("file") + " " + pad2(index + 1), lx + 60, ly + 51);
+    ctx.textBaseline = "alphabetic";
+
+    var title = T(folder.title);
+    var size = 58;
+    ctx.font = font(size, 800);
+    while (wrap(ctx, title, lw - 80).length > 3 && size > 34) {
+      size -= 4;
+      ctx.font = font(size, 800);
+    }
+    var y = textBlock(ctx, title, lx + 40, ly + 92, lw - 80, size, size * 1.12, { weight: 800 });
+    if (folder.subtitle) textBlock(ctx, T(folder.subtitle), lx + 40, y + 6, lw - 80, 28, 36, { color: SOFT, weight: 500 });
+
+    // page count, printed small at the bottom
+    ctx.fillStyle = SOFT;
+    ctx.font = font(24, 600);
+    ctx.textAlign = "left";
+    ctx.fillText(L.pages((folder.pages || []).length).toUpperCase(), 56, COVER_H - 100);
     return c;
   }
 
   function drawCoverInside(folder) {
     var c = makeCanvas(COVER_W, COVER_H);
     var ctx = c.getContext("2d");
-    glass(ctx, 8, 8, COVER_W - 16, COVER_H - 16, 40, folder.color, { glow: 0.3, rim: 4 });
+    paper(ctx, 4, 4, COVER_W - 8, COVER_H - 8, 10, STOCK_IN, { shade: 0.06, grain: 0.06 });
     ctx.fillStyle = INK;
-    ctx.font = font(44, 700);
+    ctx.font = font(42, 800);
     ctx.textAlign = "left";
-    ctx.fillText("In this file", 64, 128);
-    titleUnderline(ctx, folder, 150, 64);
-    var y = 230;
+    ctx.fillText(L.t("inThisFile"), 60, 120);
+    accentBar(ctx, folder, 144, 60);
+    var y = 222;
     (folder.pages || []).forEach(function (p, i) {
       if (y > COVER_H - 80) return;
-      var label = p.type === "quiz" ? "Question " + (i + 1) : (p.title || p.text || p.type);
-      ctx.fillStyle = alpha(folder.color, 0.18);
-      ctx.beginPath();
-      ctx.arc(84, y - 10, 22, 0, Math.PI * 2);
-      ctx.fill();
+      var label = p.type === "quiz" ? L.t("question", { n: i + 1 }) : (T(p.title) || T(p.text) || p.type);
+      dot(ctx, 80, y - 10, 20, "rgba(0,0,0,0.07)");
       ctx.fillStyle = INK;
-      ctx.font = font(24, 700);
+      ctx.font = font(22, 700);
       ctx.textAlign = "center";
-      ctx.fillText(String(i + 1), 84, y - 2);
+      ctx.fillText(String(i + 1), 80, y - 2);
       ctx.textAlign = "left";
-      ctx.font = font(30, 500);
-      ctx.fillStyle = SOFT;
-      var line = wrap(ctx, label, COVER_W - 210)[0];
+      ctx.font = font(28, 500);
+      ctx.fillStyle = "#3a3a3c";
+      var line = wrap(ctx, label, COVER_W - 200)[0];
       if (line !== label) line += "…";
-      ctx.fillText(line, 126, y);
-      y += 64;
+      ctx.fillText(line, 118, y);
+      y += 60;
     });
     return c;
   }
 
   // Back panel of the folder with its tab sticking up. Height = PANEL_H + TAB_H.
-  function drawPanel(folder, index) {
+  // side "out" = the outside (seen from behind), "in" = the inside (seen when the folder is open).
+  function drawPanel(folder, index, side) {
     var c = makeCanvas(PANEL_W, PANEL_H + TAB_H);
     var ctx = c.getContext("2d");
     var tabW = 250;
     var tabX = 40 + (index % 3) * 170;
-    // tab
+    if (side === "out") tabX = PANEL_W - tabX - tabW; // mirrored when seen from behind
+    var base = side === "out" ? STOCK : STOCK_IN;
+    // tab + body as one sheet
     ctx.save();
-    roundRect(ctx, tabX, 6, tabW, TAB_H + 60, 26);
+    ctx.beginPath();
+    var r = 18, bodyTop = TAB_H;
+    ctx.moveTo(4, bodyTop + 10);
+    ctx.arcTo(4, bodyTop, 14, bodyTop, 10);
+    ctx.lineTo(tabX - 14, bodyTop);
+    ctx.quadraticCurveTo(tabX, bodyTop, tabX + 6, bodyTop - 20);
+    ctx.lineTo(tabX + 14, 4 + r);
+    ctx.arcTo(tabX + 18, 4, tabX + 18 + r, 4, r);
+    ctx.lineTo(tabX + tabW - 18 - r, 4);
+    ctx.arcTo(tabX + tabW - 18, 4, tabX + tabW - 14, 4 + r, r);
+    ctx.lineTo(tabX + tabW - 6, bodyTop - 20);
+    ctx.quadraticCurveTo(tabX + tabW, bodyTop, tabX + tabW + 14, bodyTop);
+    ctx.lineTo(PANEL_W - 14, bodyTop);
+    ctx.arcTo(PANEL_W - 4, bodyTop, PANEL_W - 4, bodyTop + 10, 10);
+    ctx.lineTo(PANEL_W - 4, PANEL_H + TAB_H - 14);
+    ctx.arcTo(PANEL_W - 4, PANEL_H + TAB_H - 4, PANEL_W - 14, PANEL_H + TAB_H - 4, 10);
+    ctx.lineTo(14, PANEL_H + TAB_H - 4);
+    ctx.arcTo(4, PANEL_H + TAB_H - 4, 4, PANEL_H + TAB_H - 14, 10);
+    ctx.closePath();
     ctx.clip();
-    var tg = ctx.createLinearGradient(0, 0, 0, TAB_H);
-    tg.addColorStop(0, shade(folder.color, 0.25));
-    tg.addColorStop(1, folder.color);
-    ctx.fillStyle = tg;
-    ctx.fillRect(tabX, 0, tabW, TAB_H + 60);
-    ctx.fillStyle = "rgba(255,255,255,0.25)";
-    ctx.fillRect(tabX, 6, tabW, 3);
+    paper(ctx, 0, 0, PANEL_W, PANEL_H + TAB_H, 0, base, { shade: 0.08, grain: 0.06 });
     ctx.restore();
-    var size = 36;
+    ctx.strokeStyle = "rgba(0,0,0,0.10)";
+    ctx.lineWidth = 2;
+    // tab label: colour dot + name
+    var name = T(folder.tab);
+    var size = 30;
     ctx.font = font(size, 700);
-    while (ctx.measureText(folder.tab).width > tabW - 36 && size > 20) {
+    while (ctx.measureText(name).width > tabW - 80 && size > 18) {
       size -= 2;
       ctx.font = font(size, 700);
     }
-    ctx.fillStyle = "#140e08";
-    ctx.textAlign = "center";
+    var tw = ctx.measureText(name).width;
+    var startX = tabX + tabW / 2 - (tw + 28) / 2;
+    dot(ctx, startX + 7, TAB_H / 2 + 4, 7, folder.color);
+    ctx.fillStyle = INK;
+    ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(folder.tab, tabX + tabW / 2, 6 + (TAB_H - 6) / 2);
+    ctx.fillText(name, startX + 28, TAB_H / 2 + 5);
     ctx.textBaseline = "alphabetic";
-    // body
-    glass(ctx, 8, TAB_H, PANEL_W - 16, PANEL_H - 8, 40, folder.color, { glow: 0.42, rim: 4, top: shade(folder.color, -0.66) });
+    if (side === "out") scoreLines(ctx, PANEL_W, PANEL_H + TAB_H);
     return c;
   }
 
-  function drawGlow(color, softness) {
-    var c = makeCanvas(256, 256);
+  function drawPageBack() {
+    var c = makeCanvas(512, 672);
     var ctx = c.getContext("2d");
-    var g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-    g.addColorStop(0, alpha(color, 0.6));
-    g.addColorStop(softness || 0.45, alpha(color, 0.16));
-    g.addColorStop(1, alpha(color, 0));
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 256, 256);
+    paper(ctx, 9, 9, 494, 654, 7, "#f7f7f4", { shade: 0.05, grain: 0.05 });
     return c;
   }
 
-  // Soft glow around a folder (a rounded rectangle of light).
-  function drawHalo() {
-    var c = makeCanvas(256, 320);
+  // Smooth round light (512px + grain so it never looks blocky).
+  function drawGlow(color, a) {
+    var c = makeCanvas(512, 512);
     var ctx = c.getContext("2d");
-    ctx.filter = "blur(18px)";
-    ctx.fillStyle = "#ffffff";
-    roundRect(ctx, 56, 56, 144, 208, 24);
-    ctx.fill();
-    ctx.filter = "none";
-    // fallback for browsers without canvas filters: soft radial falloff
-    if (!("filter" in ctx)) {
-      var g = ctx.createRadialGradient(128, 160, 20, 128, 160, 150);
-      g.addColorStop(0, "rgba(255,255,255,1)");
-      g.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, 256, 320);
+    var g = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+    var steps = 12;
+    for (var i = 0; i <= steps; i++) {
+      var t = i / steps;
+      // smooth "ease-out" falloff instead of a linear one
+      g.addColorStop(t, alpha(color, (a || 1) * Math.pow(1 - t, 2.2)));
     }
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.globalAlpha = 0.04;
+    ctx.fillStyle = grainPattern(ctx);
+    ctx.fillRect(0, 0, 512, 512);
     return c;
   }
 
-  // A thread of light: bright at the bottom, fading upwards.
+  // Fades a reflection out from top to bottom.
+  function drawFade() {
+    var c = makeCanvas(4, 256);
+    var ctx = c.getContext("2d");
+    var g = ctx.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, "rgb(255,255,255)");
+    g.addColorStop(0.12, "rgb(150,150,150)");
+    g.addColorStop(0.45, "rgb(30,30,30)");
+    g.addColorStop(1, "rgb(0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 4, 256);
+    return c;
+  }
+
+  // A fine thread: solid at the bottom, fading upwards.
   function drawThread() {
-    var c = makeCanvas(16, 256);
+    var c = makeCanvas(8, 256);
     var ctx = c.getContext("2d");
     var g = ctx.createLinearGradient(0, 256, 0, 0);
-    g.addColorStop(0, "rgba(255,226,160,1)");
-    g.addColorStop(0.6, "rgba(242,196,109,0.45)");
-    g.addColorStop(1, "rgba(242,196,109,0)");
-    var h = ctx.createLinearGradient(0, 0, 16, 0);
-    h.addColorStop(0, "rgba(0,0,0,1)");
-    h.addColorStop(0.5, "rgba(0,0,0,0)");
-    h.addColorStop(1, "rgba(0,0,0,1)");
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.5, "rgba(255,255,255,0.5)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 16, 256);
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = h;
-    ctx.fillRect(0, 0, 16, 256);
+    ctx.fillRect(3, 0, 2, 256);
     return c;
   }
 
@@ -857,15 +829,25 @@
     PAGE_W: PAGE_W,
     PAGE_H: PAGE_H,
     COVER_RATIO: COVER_H / COVER_W,
+    // where the tab sits across the top of the folder (0 = left edge, 1 = right edge)
+    tabSpan: function (index) {
+      var x = 40 + (index % 3) * 170;
+      return [(x + 26) / PANEL_W, (x + 250 - 26) / PANEL_W];
+    },
     PANEL_TAB_RATIO: TAB_H / PANEL_H,
-    PAGE_MARGIN: M / PAGE_W,
-    drawPage: drawPage,
+    drawPage: function (page, folder, info) {
+      var c = makeCanvas(PAGE_W, PAGE_H);
+      var ctx = c.getContext("2d");
+      pageBase(ctx, folder, info);
+      (drawers[page.type] || drawers.text)(ctx, page, folder, info);
+      return c;
+    },
     drawPageBack: drawPageBack,
     drawCover: drawCover,
     drawCoverInside: drawCoverInside,
     drawPanel: drawPanel,
     drawGlow: drawGlow,
-    drawHalo: drawHalo,
+    drawFade: drawFade,
     drawThread: drawThread,
     isMedia: function (p) { return !!p && /^(video|pdf|image|gallery)$/.test(p.type); }
   };

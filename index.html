@@ -1,36 +1,67 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="night">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#000000">
   <title>Who Holds the Strings?</title>
   <meta name="description" content="A 3-D presentation about leaders and manipulators.">
-  <link rel="preload" href="fonts/outfit.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <canvas id="scene" aria-label="3-D folders. Swipe to turn them, tap the front folder to open it."></canvas>
+  <canvas id="scene" aria-label="3-D folders"></canvas>
 
   <header class="topbar">
     <div class="brand">
-      <span class="brand-title">Who Holds the Strings?</span>
-      <span class="brand-sub">Leaders and Manipulators</span>
+      <span class="brand-title" data-i18n="title">Who Holds the Strings?</span>
+      <span class="brand-sub" data-i18n="subtitle">Leaders and Manipulators</span>
     </div>
     <div class="top-actions">
-      <button id="btn-add" class="btn ghost" title="Add videos, PDFs or pictures">+ Add files</button>
-      <button id="btn-full" class="btn ghost" title="Full screen (F)">&#x26F6; Full screen</button>
+      <button id="btn-add" class="btn" data-i18n="addFiles">+ Add files</button>
+      <button id="btn-full" class="btn icon" data-i18n-title="fullscreen" title="Full screen">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="btn-settings" class="btn icon" data-i18n-title="settings" title="Settings">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
     </div>
   </header>
 
-  <div id="hint" class="hint">Swipe to turn the files &middot; Tap the front file to open it</div>
+  <!-- settings: language, day / night, brightness -->
+  <div id="settings" class="settings" hidden>
+    <div class="set-label" data-i18n="language">Language</div>
+    <div class="seg">
+      <button data-lang="en">English</button>
+      <button data-lang="es">Español</button>
+      <button data-lang="ru">Русский</button>
+    </div>
+    <div class="set-label" data-i18n="appearance">Appearance</div>
+    <div class="seg">
+      <button data-theme="day"><span class="ico">&#9728;&#xFE0E;</span> <span data-i18n="day">Day</span></button>
+      <button data-theme="night"><span class="ico">&#9790;&#xFE0E;</span> <span data-i18n="night">Night</span></button>
+      <button data-theme="auto"><span class="ico">&#9680;&#xFE0E;</span> <span data-i18n="auto">Auto</span></button>
+    </div>
+    <div class="set-note" data-i18n="autoNote"></div>
+    <div class="set-label row-between"><span data-i18n="brightness">Brightness</span><span id="brightness-value">100%</span></div>
+    <input id="brightness" type="range" min="30" max="130" step="5" value="100">
+  </div>
+
+  <div id="hint" class="hint" data-i18n="hint"></div>
+
+  <!-- caption under the front folder -->
+  <div id="caption" class="caption carousel-only">
+    <div id="cap-title" class="cap-title"></div>
+    <div id="cap-sub" class="cap-sub"></div>
+  </div>
 
   <!-- shown while the folders turn -->
   <nav id="carousel-bar" class="bar carousel-only">
     <div id="tabs" class="tabs"></div>
     <div class="row">
-      <button id="btn-prev" class="btn round" aria-label="Previous file">&#9664;</button>
+      <button id="btn-prev" class="btn round" aria-label="Previous">&#9664;&#xFE0E;</button>
       <button id="btn-open" class="btn primary">Open</button>
-      <button id="btn-next" class="btn round" aria-label="Next file">&#9654;</button>
+      <button id="btn-next" class="btn round" aria-label="Next">&#9654;&#xFE0E;</button>
     </div>
   </nav>
 
@@ -38,26 +69,29 @@
   <nav id="open-bar" class="bar open-only">
     <button id="action" class="btn action"></button>
     <div class="row">
-      <button id="btn-page-prev" class="btn">&#9664; Back</button>
+      <button id="btn-page-prev" class="btn">&#9664;&#xFE0E; <span data-i18n="back">Back</span></button>
       <div class="page-info">
         <div id="folder-name" class="folder-name"></div>
         <div id="page-count" class="page-count"></div>
       </div>
-      <button id="btn-page-next" class="btn">Next &#9654;</button>
-      <button id="btn-close" class="btn ghost close">&#x2715; Close</button>
+      <button id="btn-page-next" class="btn"><span data-i18n="next">Next</span> &#9654;&#xFE0E;</button>
+      <button id="btn-close" class="btn">&#x2715; <span data-i18n="close">Close</span></button>
     </div>
   </nav>
 
-  <div id="drop" class="drop" hidden><div>Drop videos, PDFs or pictures here</div></div>
+  <div id="drop" class="drop" hidden><div data-i18n="drop">Drop videos, PDFs or pictures here</div></div>
   <input id="file-input" type="file" multiple accept="video/*,application/pdf,image/*" hidden>
 
-  <div id="loading" class="loading">Who Holds the Strings?</div>
+  <div id="dim" class="dim"></div>
+  <div id="loading" class="loading"><div class="spinner"></div></div>
   <div id="no3d" class="loading" hidden>
-    This screen can&rsquo;t show 3-D graphics.<br>Please open this page in Chrome or Edge.
+    <span data-i18n="no3d">This screen can’t show 3-D graphics. Please open this page in Chrome or Edge.</span>
   </div>
 
   <script src="vendor/three.min.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/content.js"></script>
+  <script src="js/settings.js"></script>
   <script src="js/pages.js"></script>
   <script src="js/media.js"></script>
   <script src="js/app.js"></script>

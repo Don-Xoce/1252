@@ -5,7 +5,9 @@
 (function () {
   "use strict";
 
-  var root, stage, titleEl, counterEl, prevBtn, nextBtn;
+  var L = window.I18N;
+
+  var root, stage, titleEl, counterEl, prevBtn, nextBtn, closeBtn;
   var current = null;   // { page, index, count, pdf, renderTask }
   var onCloseCb = null;
 
@@ -47,7 +49,8 @@
     root.setAttribute("aria-modal", "true");
     var bar = el("div", "viewer-bar");
     titleEl = el("div", "viewer-title");
-    var close = el("button", "btn", "✕ Close");
+    var close = el("button", "btn", "");
+    closeBtn = close;
     close.addEventListener("click", function () { api.close(); });
     bar.appendChild(titleEl);
     bar.appendChild(close);
@@ -55,8 +58,8 @@
     stage = el("div", "viewer-stage");
 
     var nav = el("div", "viewer-nav");
-    prevBtn = el("button", "btn", "◀ Back");
-    nextBtn = el("button", "btn", "Next ▶");
+    prevBtn = el("button", "btn", "");
+    nextBtn = el("button", "btn", "");
     counterEl = el("div", "viewer-count");
     prevBtn.addEventListener("click", function () { api.step(-1); });
     nextBtn.addEventListener("click", function () { api.step(1); });
@@ -92,7 +95,7 @@
     v.playsInline = true;
     v.preload = "auto";
     v.addEventListener("error", function () {
-      message("This video could not be played. Check that \"" + page.src + "\" is in the media folder and is an .mp4 file.");
+      message(L.t("videoError"));
     });
     stage.appendChild(v);
     var p = v.play();
@@ -104,7 +107,7 @@
     var img = el("img");
     img.alt = "";
     img.src = src;
-    img.onerror = function () { message("Could not open \"" + src + "\"."); };
+    img.onerror = function () { message(L.t("fileError")); };
     stage.appendChild(img);
   }
 
@@ -134,7 +137,7 @@
   }
 
   function showPdf(page) {
-    message("Opening…");
+    message(L.t("opening"));
     loadPdfJs()
       .then(function (pdfjsLib) { return pdfjsLib.getDocument(page.src).promise; })
       .then(function (pdf) {
@@ -150,7 +153,7 @@
         stage.innerHTML = "";
         var f = el("iframe");
         f.src = page.src;
-        f.title = page.title || "PDF";
+        f.title = L.T(page.title) || "PDF";
         stage.appendChild(f);
       });
   }
@@ -163,7 +166,10 @@
       api.close(true);
       onCloseCb = onClose || null;
       current = { page: page, index: 0, count: 1 };
-      titleEl.textContent = page.title || "";
+      titleEl.textContent = L.T(page.title);
+      closeBtn.textContent = "\u2715 " + L.t("close");
+      prevBtn.textContent = "\u25C0 " + L.t("back");
+      nextBtn.textContent = L.t("next") + " \u25B6";
       stage.innerHTML = "";
       root.classList.add("open");
       setNav(false);
