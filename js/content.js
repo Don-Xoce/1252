@@ -28,7 +28,7 @@
 window.PRESENTATION = {
   title: "Who Holds the Strings?",
   subtitle: "Leaders and Manipulators",
-  presenter: "",  // Put a name here if you want it on the first page, e.g. "Presented by Ana"
+  presenter: "Presented by Adriana Castano",  // shown on the first page
 
   folders: [
     {
