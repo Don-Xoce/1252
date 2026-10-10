@@ -1,7 +1,7 @@
 # Who Holds the Strings?
 
 A 3-D presentation about **leaders and manipulators** for a Year 5–6 class.
-The files hang on puppet strings in a turning carousel. Tap a file to open it, then flip through its pages.
+Glass folders hang on threads of light in a turning carousel. Tap a folder to open it, then flip through its pages; each page curls as it turns.
 
 Built with [Three.js](https://threejs.org) (3-D) and [PDF.js](https://mozilla.github.io/pdf.js/) (PDFs). There's no install and no build step, and it works without internet.
 
@@ -81,5 +81,6 @@ js/pages.js         draws each page
 js/app.js           the 3-D carousel, folders and page flips
 js/media.js         full-screen video / PDF / picture viewer
 media/              videos, PDFs, pictures
+fonts/              the Outfit font (saved locally so it works offline)
 vendor/             Three.js r158 and PDF.js 3.11 (saved locally so it works offline)
 ```
